@@ -1,0 +1,39 @@
+import pandas as pd
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+import numpy as np 
+import sklearn  
+import pickle 
+import streamlit as s
+
+
+pre=pickle.load(open(r"C:\Users\LENOVO\Downloads\finalp_drugs.pkl","rb"))
+model=pickle.load(open(r"C:\Users\LENOVO\Downloads\model_drugs.pkl","rb"))
+
+s.title("Prediction of Drug")
+s.subheader("Renuka")
+
+age=s.number_input("Type age of a person")
+sex=s.radio("Select gender of a person",["F","M"])
+bp=s.radio("Select blood pressure of a person",["HIGH","LOW","NORMAL"])
+cholesterol=s.radio("Select cholesterol of a person",["HIGH","NORMAL"])
+na_to_k=s.number_input("Type na to k level of a person")
+
+
+f_pre=pre.transform(pd.DataFrame([[age,sex,bp,cholesterol,na_to_k]],columns=["Age","Sex","BP","Cholesterol","Na_to_K"]))
+pred=model.predict(f_pre)
+
+
+if pred==0:
+  x="DrugY"
+elif pred==1:
+  x="DrugA"
+elif pred==2:
+  x="DrugB"
+elif pred==3:
+  x="DrugC"
+else:
+  x="DrugX"
+
+if s.button("submit"):
+  s.write("The prescribed drug is "+x)
