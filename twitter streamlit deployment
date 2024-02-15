@@ -1,0 +1,157 @@
+# importing necessary libraries
+
+import pandas as pd 
+import numpy as np
+import regex as re
+import seaborn as sns
+import matplotlib.pyplot as plt
+#import emoji
+#from autocorrect import Speller
+import streamlit as s
+import nltk
+
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize,sent_tokenize
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+import pickle
+
+
+from sklearn.pipeline import Pipeline,make_pipeline
+from sklearn.preprocessing import OneHotEncoder,StandardScaler,OrdinalEncoder,FunctionTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.feature_extraction.text import CountVectorizer,TfidfTransformer
+from sklearn.naive_bayes import MultinomialNB
+
+
+# read the file
+data=pd.read_csv(r"C:\Users\LENOVO\Downloads\archive\training.1600000.processed.noemoticon.csv",encoding="Latin-1",header=None)
+
+df=data.copy()
+
+
+
+## EDA to explore the data and  DATA CLEANING
+
+
+# checking null values
+df.isnull().sum()
+
+
+# checking duplicates
+df.duplicated().sum()
+
+
+# Rename the columns
+
+df.rename(columns={0:"Target",1:"Id",2:"Date",3:"Flag",4:"User",5:"Text"},inplace=True)
+
+
+
+
+
+# check the data whether it is balanced or imbalanced data and it should be done on basis of Target column.
+df["Target"].value_counts()
+
+
+stp=stopwords.words("english")
+stp.remove("not")
+
+# from this data extract the feature variable and class variable
+fea_var=df.iloc[:,-1]
+cl_var=df.iloc[:,0]
+
+# splitting the data into xtrain and x_test
+x_train,x_test,y_train,y_test=train_test_split(fea_var,cl_var,test_size=0.2,random_state=1,stratify=cl_var)
+
+##### creating functions for pre processing
+
+def lower(x):
+    return x.str.lower()
+
+def html(x):
+    return x.apply(lambda x:re.sub("<.+?"," ",x))
+
+def url(x):
+    return x.apply(lambda x:re.sub("http[s]?://.+? +"," ",x))
+
+def unw(x):
+    return x.apply(lambda x:re.sub("[]()/{}*-`''`£!?,:;.,@#$%^&0-9[!_]"," ",x))
+
+def tpp(x): ## tokenization,removing stopwords
+    
+    l=[]
+    for word in word_tokenize(x):
+        if word in stp:
+            pass
+        elif len(word)<=2:
+            pass
+        else:
+            l.append(word)
+    
+    return " ".join(l)
+
+def stpp(x):
+    return x.apply(lambda x : tpp(x))
+
+### creating pipeline for preprocessing
+
+# pipe line for preprocessing. removing html tags,urls,unwanted characters and converting into lower case
+pre_pro_pip=Pipeline([("lower",FunctionTransformer(lower)),
+                                ("html",FunctionTransformer(html)),
+                                ("url",FunctionTransformer(url)),
+                                ("unw",FunctionTransformer(unw)),
+                     ("stp_tokens",FunctionTransformer(stpp))])
+
+
+
+# transformed the x_train data which is learned in pipeline
+fx_train=pre_pro_pip.fit_transform(x_train)
+
+
+
+## Final pipeline
+
+# final pipeline conecting preprocess and converting into vectors
+final_pip=Pipeline([("pre-process",pre_pro_pip),("vectorizer",CountVectorizer())])
+
+
+# this is the transformed data to transform the train data by using pipeline 
+final_pip.fit_transform(x_train)
+
+final_pip.transform(x_test)
+
+## model creation / training
+
+mb=MultinomialNB()
+model=mb.fit(final_pip.fit_transform(x_train),y_train)
+
+pred=model.predict(final_pip.transform(x_test))
+
+
+## Deployment
+
+pickle.dump(final_pip,open(r"C:\Users\LENOVO\Downloads\final_text_preprocessing.pkl","wb"))
+
+pickle.dump(model,open(r"C:\Users\LENOVO\Downloads\final_spam_model.pkl","wb"))
+
+
+
+
+pre=pickle.load(open(r"C:\Users\LENOVO\Downloads\final_text_preprocessing.pkl","rb"))
+model=pickle.load(open(r"C:\Users\LENOVO\Downloads\final_twitter_model.pkl","rb"))
+
+s.title("sentiment Detection of Text")
+
+finput=s.text_input("Type your text to know the sentiment of a text")
+fpre=pre.transform(pd.Series(finput))
+pred=model.predict(fpre)
+
+
+if pred==0:
+  x="Negative"
+else:
+  x="Positive"
+
+if s.button("submit"):
+  s.write("The sentiment of provided Text is "+x)
