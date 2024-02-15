@@ -1,0 +1,35 @@
+import pandas as pd
+import matplotlib.pyplot as plt 
+import seaborn as sns 
+import numpy as np 
+import sklearn  
+import pickle 
+import streamlit as s
+
+pre=pickle.load(open(r"C:\Users\LENOVO\Downloads\finalp_apple.pkl","rb"))
+model=pickle.load(open(r"C:\Users\LENOVO\Downloads\model_apple.pkl","rb"))
+
+s.title("Prediction of Apple Quality")
+s.subheader("Renuka")
+
+size=s.number_input("Type size of an apple")
+weight=s.number_input("Type weight of an apple")
+sweetness=s.number_input("Type sweetness of an apple")
+crunchiness=s.number_input("Type crunchiness of an apple")
+juiciness=s.number_input("Type juciness of an apple")
+ripeness=s.number_input("Type ripeness of an apple")
+acidity=s.number_input("Type acidity of an apple")
+
+
+
+f_pre=pre.transform(pd.DataFrame([[size,weight,sweetness,crunchiness,juiciness,ripeness,acidity]],columns=["Size","Weight","Sweetness","Crunchiness","Juiciness","Ripeness","Acidity"]))
+pred=model.predict(f_pre)
+
+
+if pred==1:
+  x="good"
+else:
+  x="bad"
+
+if s.button("submit"):
+  s.write("The apple quality is "+x)
