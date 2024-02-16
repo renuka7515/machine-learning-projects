@@ -1,0 +1,161 @@
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import sklearn
+import nltk
+import re
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize,sent_tokenize
+from sklearn.model_selection import train_test_split
+import streamlit as s
+
+from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer
+from sklearn.naive_bayes import BernoulliNB,MultinomialNB,CategoricalNB,GaussianNB
+from sklearn.compose import ColumnTransformer
+import pickle
+
+from sklearn.pipeline import Pipeline,make_pipeline
+from sklearn.preprocessing import OneHotEncoder,StandardScaler,OrdinalEncoder,FunctionTransformer
+from sklearn.impute import SimpleImputer
+
+## Data collection
+
+# read the data set
+data=pd.read_csv(r"C:\Users\LENOVO\Downloads\Emotion_classify_Data.csv")
+
+# make a copy of dataset
+datac=data.copy()
+
+
+## perform EDA to explore the data
+
+
+
+# check whether dataset contains duplicates
+datac.duplicated().sum()
+
+
+# check the data whether it is balanced or imbalanced data and it should be done on basis of class label.
+datac["Emotion"].value_counts()
+
+# As the feature variable comment is text data we need to check whether data contains any html tags,unwanted characters,
+# special characters,links and mainly it should be in either uppercase or lower case.to check that i created a function.
+
+
+# revome not from stopwords
+
+stp=stopwords.words("english")
+stp.remove("not")
+
+# from this data extract the feature variable and class variable
+fea_var=datac.iloc[:,0]
+cl_var=datac.iloc[:,-1]
+
+# Here as the class label is category we need to give label that should be real value
+cl_var=cl_var.map({"fear":0,"anger":1,"joy":2})
+
+#splitting the data into train and test
+x_train,x_test,y_train,y_test=train_test_split(fea_var,cl_var,test_size=0.2,random_state=1,stratify=cl_var)
+
+# splitting train data into train and cv
+x_train,x_cv,y_train,y_cv=train_test_split(x_train,y_train,test_size=0.2,random_state=1,stratify=y_train)
+
+#### creating functions for pre processing
+
+def lower(x):
+    return x.str.lower()
+
+def html(x):
+    return x.apply(lambda x:re.sub("<.+?"," ",x))
+
+def url(x):
+    return x.apply(lambda x:re.sub("http[s]?://.+? +"," ",x))
+
+def unw(x):
+    return x.apply(lambda x:re.sub("[]()/{}*-`''`£!?,:;.,@#$%^&0-9[!_]"," ",x))
+
+def tpp(x): ## tokenization,removing stopwords
+    
+    l=[]
+    for word in word_tokenize(x):
+        if word in stp:
+            pass
+        elif len(word)<=2:
+            pass
+        else:
+            l.append(word)
+    
+    return " ".join(l)
+
+def stpp(x):
+    return x.apply(lambda x : tpp(x))
+
+### creating pipeline for preprocessing
+
+# pipe line for preprocessing. removing html tags,urls,unwanted characters and converting into lower case
+pre_pro_pip=Pipeline([("lower",FunctionTransformer(lower)),
+                                ("html",FunctionTransformer(html)),
+                                ("url",FunctionTransformer(url)),
+                                ("unw",FunctionTransformer(unw)),
+                     ("stp_tokens",FunctionTransformer(stpp))])
+
+
+# transformed the x_train data which is learned in pipeline
+fx_train=pre_pro_pip.fit_transform(x_train)
+
+## creating Final pipeline
+
+# final pipeline conecting preprocess and converting into vectors
+final_pip=Pipeline([("pre-process",pre_pro_pip),("vectorizer",CountVectorizer())])
+
+# this is the transformed data to transform the train data by using pipeline 
+fx_train=final_pip.fit_transform(x_train)
+
+fx_cv=final_pip.transform(x_cv)
+
+fx_test=final_pip.transform(x_test)
+
+## Model creation / Training
+
+#### bag of words (multinomial naive bayes)
+
+
+# from plot we can see that both train and cv error is low at alpha is 1 
+# so by choosing alpha as 1 test the model accuracy by passing test data
+
+mnb=MultinomialNB(alpha=1)
+model=mnb.fit(fx_train,y_train)
+
+
+
+
+## Deployment
+
+pickle.dump(final_pip,open(r"C:\Users\LENOVO\Downloads\final_text_preprocessing.pkl","wb"))
+
+pickle.dump(model,open(r"C:\Users\LENOVO\Downloads\final_emotion_model.pkl","wb"))
+
+
+
+
+pre=pickle.load(open(r"C:\Users\LENOVO\Downloads\final_text_preprocessing.pkl","rb"))
+model=pickle.load(open(r"C:\Users\LENOVO\Downloads\final_emotion_model.pkl","rb"))
+
+s.title("Emotion Detection of Comment")
+
+finput=s.text_input("Type your comment to know the emotion of a comment")
+fpre=pre.transform(pd.Series(finput))
+pred=model.predict(fpre)
+
+
+if pred==0:
+  x="Fear"
+elif pred==1:
+  x="Anger"
+else:
+  x="Joy"
+
+if s.button("submit"):
+  s.write("The emotion of provided comment is "+x)
